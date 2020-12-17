@@ -1,2 +1,2 @@
-# fugue-incubator
-Fugue Based Experimental Projects
+# Fugue Incubator
+Fugue based experimental projects
