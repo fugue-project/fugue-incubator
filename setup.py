@@ -5,11 +5,13 @@ import os
 with open("README.md") as f:
     LONG_DESCRIPTION = f.read()
 
+
 def get_version() -> str:
     tag = os.environ.get("RELEASE_TAG", "")
     if "dev" in tag.split(".")[-1]:
         return tag
     return __version__
+
 
 setup(
     name="fugue-incubator",
