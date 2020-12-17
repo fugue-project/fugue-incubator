@@ -10,6 +10,8 @@ def get_version() -> str:
     tag = os.environ.get("RELEASE_TAG", "")
     if "dev" in tag.split(".")[-1]:
         return tag
+    if tag != "":
+        assert tag == __version__, "release tag and version mismatch"
     return __version__
 
 
