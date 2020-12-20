@@ -12,6 +12,7 @@ class Grid(object):
         yield from self._values
 
 
+# TODO: make this iterable?
 class Space(object):
     def __init__(self, **kwargs: Any):
         self._value = deepcopy(kwargs)
@@ -64,7 +65,7 @@ class HorizontalSpace(Space):
                 raise ValueError(f"{x} is invalid")
         self._dict = {k: _SpaceValue(v) for k, v in kwargs.items()}
 
-    @no_type_check
+    @no_type_check  # TODO: remove this?
     def __iter__(self) -> Iterable[Dict[str, Any]]:
         dicts = list(dict_product(self._dict, safe=True))
         for spaces in product(
@@ -103,7 +104,7 @@ class _SpaceValue(object):
     def __init__(self, value: Any):
         self.value = value
 
-    @no_type_check
+    @no_type_check  # TODO: remove this?
     def __iter__(self) -> Iterable[Any]:
         if isinstance(self.value, (HorizontalSpace, VerticalSpace)):
             yield from self.value
