@@ -12,7 +12,7 @@ class Grid(object):
         yield from self._values
 
 
-# TODO: make this iterable?
+# TODO: make this inherit from iterable?
 class Space(object):
     def __init__(self, **kwargs: Any):
         self._value = deepcopy(kwargs)
