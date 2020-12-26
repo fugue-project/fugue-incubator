@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 from fugue import ExecutionEngine
 from triad import ParamDict
@@ -10,9 +10,10 @@ class Tunable(object):
     def run(self, **kwargs: Any) -> None:  # pragma: no cover
         raise NotImplementedError
 
-    def report(self, error: Any, metadata: Any = None) -> None:
-        self._error = float(error)
-        self._metadata = ParamDict(metadata)
+    def report(self, result: Dict[str, Any]) -> None:
+        self._error = float(result["error"])
+        self._hp = ParamDict(result.get("hp", None))
+        self._metadata = ParamDict(result.get("metadata", None))
 
     @property
     def error(self) -> float:
@@ -20,6 +21,13 @@ class Tunable(object):
             return self._error
         except Exception:
             raise FugueTuneRuntimeError("error is not set")
+
+    @property
+    def hp(self) -> ParamDict:
+        try:
+            return self._hp
+        except Exception:
+            raise FugueTuneRuntimeError("hp is not set")
 
     @property
     def metadata(self) -> ParamDict:
@@ -42,9 +50,11 @@ class Tunable(object):
 
 
 class SimpleTunable(Tunable):
-    def tune(self, **kwargs: Any) -> Tuple[float, Dict[str, Any]]:  # pragma: no cover
+    def tune(self, **kwargs: Any) -> Dict[str, Any]:  # pragma: no cover
         raise NotImplementedError
 
     def run(self, **kwargs: Any) -> None:
-        score, metadata = self.tune(**kwargs)
-        self.report(score, metadata)
+        res = self.tune(**kwargs)
+        if "hp" not in res:
+            res["hp"] = kwargs
+        self.report(res)

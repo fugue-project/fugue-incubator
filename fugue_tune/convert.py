@@ -1,6 +1,6 @@
 import copy
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, no_type_check
+from typing import Any, Callable, Dict, List, Optional, no_type_check
 
 from fugue import ExecutionEngine
 from fugue._utils.interfaceless import (
@@ -38,7 +38,7 @@ def _to_tunable(
 
     def get_tunable() -> Tunable:
         if isinstance(obj, Tunable):
-            return obj
+            return copy.copy(obj)
         try:
             f = to_function(obj, global_vars=global_vars, local_vars=local_vars)
             # this is for string expression of function with decorator
@@ -65,9 +65,9 @@ class _SingleParam(_FuncParam):
         super().__init__(param, "float", "s")
 
 
-class _TupleParam(_FuncParam):
+class _DictParam(_FuncParam):
     def __init__(self, param: Optional[inspect.Parameter]):
-        super().__init__(param, "Tuple[float,Dict[str,Any]]", "d")
+        super().__init__(param, "Dict[str,Any]", "d")
 
 
 class _TunableWrapper(FunctionWrapper):
@@ -82,8 +82,8 @@ class _TunableWrapper(FunctionWrapper):
     ) -> _FuncParam:
         if annotation is float:
             return _SingleParam(param)
-        elif annotation is Tuple[float, Dict[str, Any]]:
-            return _TupleParam(param)
+        elif annotation is Dict[str, Any]:
+            return _DictParam(param)
         elif annotation is ExecutionEngine:
             return _ExecutionEngineParam(param)
         else:
@@ -100,11 +100,11 @@ class _TunableWrapper(FunctionWrapper):
 
 class _FuncAsTunable(SimpleTunable):
     @no_type_check
-    def tune(self, **kwargs: Any) -> Tuple[float, Dict[str, Any]]:
+    def tune(self, **kwargs: Any) -> Dict[str, Any]:
         # pylint: disable=no-member
         args: List[Any] = [self.execution_engine] if self._needs_engine else []
         if self._single:
-            return self._func(*args, **kwargs), {}
+            return dict(error=self._func(*args, **kwargs))
         else:
             return self._func(*args, **kwargs)
 

@@ -12,23 +12,27 @@ def test_tunable():
     t.run(a=1, b=2)
     assert 3.0 == t.error
     assert t.metadata == {}
+    assert t.hp == {"a": 1, "b": 2}
 
     t = _MockTunable()
-    t.run(a=1, m=2)
-    assert 3.0 == t.error
+    t.run(a=1, m=2, x=2)
+    assert 5.0 == t.error
     assert t.metadata == {"m": 2}
+    assert t.hp == {"x": 2}
 
     t = _MockTunable()
     raises(FugueTuneRuntimeError, lambda: t.error)
+    raises(FugueTuneRuntimeError, lambda: t.hp)
     raises(FugueTuneRuntimeError, lambda: t.metadata)
     raises(FugueTuneRuntimeError, lambda: t.execution_engine)
 
 
 class _MockTunable(SimpleTunable):
-    def tune(self, **kwargs: Any) -> Tuple[float, Dict[str, Any]]:
+    def tune(self, **kwargs: Any) -> Dict[str, Any]:
         error = np.double(sum(kwargs.values()))
+        res = {"error": error}
         if "m" in kwargs:
-            meta = {"m": kwargs["m"]}
-        else:
-            meta = None
-        return error, meta
+            res["metadata"] = {"m": kwargs["m"]}
+        if "x" in kwargs:
+            res["hp"] = {"x": kwargs["x"]}
+        return res

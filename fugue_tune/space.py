@@ -12,6 +12,23 @@ class Grid(object):
         yield from self._values
 
 
+class Choice(object):
+    def __init__(self, *args: Any):
+        self._values = list(args)
+
+    def __iter__(self) -> Iterable[Any]:
+        yield from self._values
+
+
+class Rand(object):
+    def __init__(self, start: float, end: float, q: float, log: bool, normal: bool):
+        self._start = start
+        self._end = end
+        self._q = q
+        self._log = log
+        self._normal = normal
+
+
 # TODO: make this inherit from iterable?
 class Space(object):
     def __init__(self, **kwargs: Any):
