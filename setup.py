@@ -28,7 +28,7 @@ setup(
     keywords="fugue incubator experiment",
     url="http://github.com/fugue-project/fugue-incubator",
     install_requires=["fugue==0.5.0.dev1"],
-    extras_require={},
+    extras_require={"hyperopt": ["hyperopt"], "all": ["hyperopt"]},
     classifiers=[
         # "3 - Alpha", "4 - Beta" or "5 - Production/Stable"
         "Development Status :: 3 - Alpha",

@@ -15,11 +15,20 @@ from fugue import (
     Transformer,
     WorkflowDataFrame,
 )
-from triad import assert_or_throw
 from triad.utils.convert import get_caller_global_local_vars
 
 from fugue_tune.convert import _to_tunable
-from fugue_tune.space import Choice, Grid, Rand, Space
+from fugue_tune.space import Space, decode
+from fugue_tune.tunable import Tunable
+
+
+class ObjectiveRunner(object):
+    def run(
+        self, tunable: Tunable, kwargs: Dict[str, Any], hp_keys: Set[str]
+    ) -> Dict[str, Any]:
+        tunable.run(**kwargs)
+        hp = {k: v for k, v in tunable.hp.items() if k in hp_keys}
+        return {"error": tunable.error, "hp": hp, "metadata": tunable.metadata}
 
 
 class Tuner(object):
@@ -28,6 +37,7 @@ class Tuner(object):
         params_df: WorkflowDataFrame,
         tunable: Any,
         distributable: Optional[bool] = None,
+        objective_runner: Optional[ObjectiveRunner] = None,
     ) -> WorkflowDataFrame:
         t = _to_tunable(  # type: ignore
             tunable, *get_caller_global_local_vars(), distributable
@@ -35,10 +45,13 @@ class Tuner(object):
         if distributable is None:
             distributable = t.distributable
 
+        if objective_runner is None:
+            objective_runner = ObjectiveRunner()
+
         # input_has: __fmin_params__:str
         # schema: *,__fmin_value__:double,__fmin_metadata__:str
         def compute_transformer(
-            df: Iterable[Dict[str, Any]], load: Any = None
+            df: Iterable[Dict[str, Any]]
         ) -> Iterable[Dict[str, Any]]:
             for row in df:
                 dfs: Dict[str, Any] = {}
@@ -50,13 +63,14 @@ class Tuner(object):
                             dfs[key] = pd.read_parquet(v)
                         dfs_keys.add(key)
                 for params in json.loads(row["__fmin_params__"]):
-                    t.run(**dfs, **params)
-                    res = dict(row)
-                    res["__fmin_params__"] = json.dumps(
-                        {pk: pv for pk, pv in t.hp.items() if pk not in dfs_keys}
+                    p = decode(params)
+                    best = objective_runner.run(  # type: ignore
+                        t, dict(**dfs, **p), set(p.keys())
                     )
-                    res["__fmin_value__"] = t.error
-                    res["__fmin_metadata__"] = json.dumps(t.metadata)
+                    res = dict(row)
+                    res["__fmin_params__"] = json.dumps(best["hp"])
+                    res["__fmin_value__"] = best["error"]
+                    res["__fmin_metadata__"] = json.dumps(best["metadata"])
                     yield res
 
         # input_has: __fmin_params__:str
@@ -112,13 +126,13 @@ class Tuner(object):
         self, wf: FugueWorkflow, space: Space, batch_size: int = 1, shuffle: bool = True
     ) -> WorkflowDataFrame:
         def get_data() -> Iterable[List[Any]]:
-            it = list(space)  # type: ignore
+            it = list(space.encode())  # type: ignore
             if shuffle:
                 random.seed(0)
                 random.shuffle(it)
             res: List[Any] = []
             for a in it:
-                res.append(self._convert_hp(a))
+                res.append(a)
                 if batch_size == len(res):
                     yield [json.dumps(res)]
                     res = []
@@ -126,12 +140,3 @@ class Tuner(object):
                 yield [json.dumps(res)]
 
         return wf.df(IterableDataFrame(get_data(), "__fmin_params__:str"))
-
-    def _convert_hp(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        return {k: self._convert_single(v) for k, v in params.items()}
-
-    def _convert_single(self, param: Any) -> Any:
-        assert_or_throw(
-            not isinstance(param, (Grid, Rand, Choice)), NotImplementedError(param)
-        )
-        return param

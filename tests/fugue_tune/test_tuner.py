@@ -80,4 +80,10 @@ def test_tune_df(tmpdir):
             t = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int")
             df = tuner.serialize_df(t, "p", str(tmpdir)).cross_join(s.broadcast())
             tuner.tune(df, t1, distributable=distributable).show()
-            
+
+    for distributable in [True, False, None]:
+        with FugueWorkflow() as dag:
+            s = tuner.space_to_df(dag, Space(a=Grid(0, 1), b=Grid(2, 3)), batch_size=3)
+            t = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
+            df = tuner.serialize_df(t, "p", str(tmpdir)).cross_join(s.broadcast())
+            tuner.tune(df, t1, distributable=distributable).show()

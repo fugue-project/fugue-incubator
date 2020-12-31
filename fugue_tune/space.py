@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Any, Dict, Iterable, List, Tuple, no_type_check
+from typing import Any, Dict, Iterable, List, Tuple, no_type_check, Optional
 
 from fugue_tune.iter import dict_product, product
 
@@ -12,21 +12,74 @@ class Grid(object):
         yield from self._values
 
 
-class Choice(object):
+class StochasticExpression(object):
+    @property
+    def jsondict(self) -> Dict[str, Any]:  # pragma: no cover
+        raise NotImplementedError
+
+    def __eq__(self, other: Any):
+        return isinstance(other, type(self)) and self.jsondict == other.jsondict
+
+
+class Choice(StochasticExpression):
     def __init__(self, *args: Any):
         self._values = list(args)
 
-    def __iter__(self) -> Iterable[Any]:
-        yield from self._values
+    @property
+    def values(self) -> List[Any]:
+        return self._values
+
+    @property
+    def jsondict(self) -> Dict[str, Any]:
+        return dict(_expr_="choice", values=self.values)
 
 
-class Rand(object):
-    def __init__(self, start: float, end: float, q: float, log: bool, normal: bool):
-        self._start = start
-        self._end = end
-        self._q = q
-        self._log = log
-        self._normal = normal
+class Rand(StochasticExpression):
+    def __init__(
+        self,
+        start: float,
+        end: float,
+        q: Optional[float] = None,
+        log: bool = False,
+        normal: bool = False,
+    ):
+        self.start = start
+        self.end = end
+        self.q = q
+        self.log = log
+        self.normal = normal
+
+    @property
+    def jsondict(self) -> Dict[str, Any]:
+        res = dict(
+            _expr_="rand",
+            start=self.start,
+            end=self.end,
+            log=self.log,
+            normal=self.normal,
+        )
+        if self.q is not None:
+            res["q"] = self.q
+        return res
+
+
+def decode(value: Any) -> Any:
+    if isinstance(value, str):
+        return value
+    elif isinstance(value, list):
+        return [decode(v) for v in value]
+    elif isinstance(value, dict):
+        if "_expr_" in value:
+            e = value.pop("_expr_")
+            if e == "choice":  # TODO: embeded rand is not supported
+                return Choice(*value["values"])
+            if e == "rand":
+                return Rand(**value)
+            raise ValueError(e)  # pragma: no cover
+        else:
+            return {k: decode(v) for k, v in value.items()}
+    else:
+        return value
 
 
 # TODO: make this inherit from iterable?
@@ -42,6 +95,10 @@ class Space(object):
             for tp in tps:
                 tp[0][tp[1]] = tp[2]
             yield deepcopy(self._value)
+
+    def encode(self) -> Iterable[Any]:
+        for s in self:  # type: ignore
+            yield self._encode_value(s)
 
     def __mul__(self, other: Any) -> "HorizontalSpace":
         return HorizontalSpace(self, other)
@@ -62,6 +119,17 @@ class Space(object):
 
     def _grid_wrapper(self, parent: Any, key: Any) -> List[Tuple[Any, Any, Any]]:
         return [(parent, key, x) for x in parent[key]]
+
+    def _encode_value(self, value: Any) -> Any:
+        if isinstance(value, StochasticExpression):
+            return value.jsondict
+        elif isinstance(value, str):
+            return value
+        elif isinstance(value, list):
+            return [self._encode_value(v) for v in value]
+        elif isinstance(value, dict):
+            return {k: self._encode_value(v) for k, v in value.items()}
+        return value
 
 
 class HorizontalSpace(Space):
