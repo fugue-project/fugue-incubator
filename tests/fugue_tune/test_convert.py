@@ -74,13 +74,21 @@ def test_to_tunable():
 
 
 def test_deco():
-    @tunable()
+    @tunable
     def t1(a: int, b: int) -> float:
         return a + b
 
     @tunable()
     def t2(a: int, b: int) -> Dict[str, Any]:
         return dict(error=a + b, metadata={"x": 1}, hp={"y": 2})
+
+    @tunable
+    def t3(e: ExecutionEngine, a: int) -> float:
+        return a
+
+    @tunable()
+    def t4(e: ExecutionEngine, a: int) -> float:
+        return a
 
     t11 = _to_tunable(t1)  # it will copy, t1 change will not affect t11
     t12 = _to_tunable("t1")  # it will copy, t1 change will not affect t11
@@ -102,3 +110,6 @@ def test_deco():
     assert 7 == t2.error
     assert t2.metadata == {"x": 1}
     assert t2.hp == {"y": 2}
+
+    assert not t3.distributable
+    assert not t4.distributable

@@ -1,7 +1,8 @@
+import copy
 import json
 import os
 import random
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 from uuid import uuid4
 
 import pandas as pd
@@ -18,18 +19,65 @@ from fugue import (
 from triad import ParamDict
 from triad.utils.convert import get_caller_global_local_vars
 
-from fugue_tune.convert import _to_tunable
+import fugue_tune.convert as fc
+import fugue_tune.tunable as ft
 from fugue_tune.space import Space, decode
-from fugue_tune.tunable import Tunable
 
 
 class ObjectiveRunner(object):
     def run(
-        self, tunable: Tunable, kwargs: Dict[str, Any], hp_keys: Set[str]
+        self, tunable: "ft.Tunable", kwargs: Dict[str, Any], hp_keys: Set[str]
     ) -> Dict[str, Any]:
         tunable.run(**kwargs)
         hp = {k: v for k, v in tunable.hp.items() if k in hp_keys}
         return {"error": tunable.error, "hp": hp, "metadata": tunable.metadata}
+
+
+class TunableWithSpace(object):
+    def __init__(self, tunable: "ft.Tunable", space: Space):
+        self._tunable = copy.copy(tunable)
+        self._space = space
+
+    @property
+    def tunable(self) -> "ft.Tunable":
+        return self._tunable
+
+    @property
+    def space(self) -> Space:
+        return self._space
+
+    def tune(
+        self,
+        source: Union[WorkflowDataFrame, FugueWorkflow] = None,
+        distributable: Optional[bool] = None,
+        objective_runner: Optional[ObjectiveRunner] = None,
+        df_name: str = "df",
+        serialize_path: str = "",
+        batch_size: int = 1,
+        shuffle: bool = True,
+    ) -> WorkflowDataFrame:
+        if isinstance(source, WorkflowDataFrame):
+            df = source
+            data = serialize_df(df, name=df_name, path=serialize_path)
+            space_df = space_to_df(
+                df.workflow, self.space, batch_size=batch_size, shuffle=shuffle
+            )
+            return tune(
+                data.cross_join(space_df),
+                tunable=self.tunable,
+                distributable=distributable,
+                objective_runner=objective_runner,
+            )
+        else:
+            space_df = space_to_df(
+                source, self.space, batch_size=batch_size, shuffle=shuffle
+            )
+            return tune(
+                space_df,
+                tunable=self.tunable,
+                distributable=distributable,
+                objective_runner=objective_runner,
+            )
 
 
 def tune(  # noqa: C901
@@ -38,7 +86,7 @@ def tune(  # noqa: C901
     distributable: Optional[bool] = None,
     objective_runner: Optional[ObjectiveRunner] = None,
 ) -> WorkflowDataFrame:
-    t = _to_tunable(  # type: ignore
+    t = fc._to_tunable(  # type: ignore
         tunable, *get_caller_global_local_vars(), distributable
     )
     if distributable is None:
@@ -88,27 +136,6 @@ def tune(  # noqa: C901
         return params_df.partition(num="ROWCOUNT", algo="even").transform(
             compute_transformer
         )
-
-
-def tune_with_single_df(
-    df: WorkflowDataFrame,
-    space: Space,
-    tunable: Any,
-    distributable: Optional[bool] = None,
-    objective_runner: Optional[ObjectiveRunner] = None,
-    df_name: str = "df",
-    serialize_path: str = "",
-    batch_size: int = 1,
-    shuffle: bool = True,
-) -> WorkflowDataFrame:
-    data = serialize_df(df, name=df_name, path=serialize_path)
-    space_df = space_to_df(df.workflow, space, batch_size=batch_size, shuffle=shuffle)
-    return tune(
-        data.cross_join(space_df),
-        tunable=tunable,
-        distributable=distributable,
-        objective_runner=objective_runner,
-    )
 
 
 def serialize_df(df: WorkflowDataFrame, name: str, path: str = "") -> WorkflowDataFrame:

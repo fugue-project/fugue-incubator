@@ -6,14 +6,13 @@ from fugue import (
     ExecutionEngine,
     FugueWorkflow,
     IterableDataFrame,
-    WorkflowDataFrame,
     NativeExecutionEngine,
+    WorkflowDataFrame,
 )
 from pytest import raises
 
+from fugue_tune import Grid, Space, serialize_df, space_to_df, tunable, tune
 from fugue_tune.exceptions import FugueTuneCompileError
-from fugue_tune.space import Grid, Space
-from fugue_tune.tune import serialize_df, space_to_df, tune, tune_with_single_df
 
 
 def test_space_to_df():
@@ -55,6 +54,7 @@ def test_tune_simple():
             df = space_to_df(dag, Space(a=Grid(0, 1), b=Grid(2, 3)))
             tune(df, t1, distributable=distributable).show()
 
+    @tunable()
     def t2(e: ExecutionEngine, a: int, b: int) -> float:
         assert isinstance(e, ExecutionEngine)
         return a + b
@@ -63,6 +63,10 @@ def test_tune_simple():
         with FugueWorkflow() as dag:
             df = space_to_df(dag, Space(a=Grid(0, 1), b=Grid(2, 3)))
             tune(df, t2, distributable=distributable).show()
+            
+    # equivalent syntax sugar
+    with FugueWorkflow() as dag:
+        t2.space(a=Grid(0, 1), b=Grid(2, 3)).tune(dag).show()
 
     with raises(FugueTuneCompileError):
         with FugueWorkflow() as dag:
@@ -71,6 +75,7 @@ def test_tune_simple():
 
 
 def test_tune_df(tmpdir):
+    @tunable()
     def t1(a: int, df: pd.DataFrame, b: int) -> float:
         return float(a + b + df["y"].sum())
 
@@ -86,4 +91,4 @@ def test_tune_df(tmpdir):
     for distributable in [True, False, None]:
         with FugueWorkflow(e) as dag:
             df = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int")
-            tune_with_single_df(df, Space(a=Grid(0, 1), b=Grid(2, 3)), t1).show()
+            t1.space(a=Grid(0, 1), b=Grid(2, 3)).tune(df).show()

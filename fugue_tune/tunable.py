@@ -3,7 +3,9 @@ from typing import Any, Dict
 from fugue import ExecutionEngine
 from triad import ParamDict
 
+import fugue_tune.tune as ft
 from fugue_tune.exceptions import FugueTuneRuntimeError
+from fugue_tune.space import Space
 
 
 class Tunable(object):
@@ -47,6 +49,9 @@ class Tunable(object):
             return self._execution_engine  # type: ignore
         except Exception:
             raise FugueTuneRuntimeError("execution_engine is not set")
+
+    def space(self, **kwargs: Any) -> ft.TunableWithSpace:
+        return ft.TunableWithSpace(self, Space(**kwargs))
 
 
 class SimpleTunable(Tunable):

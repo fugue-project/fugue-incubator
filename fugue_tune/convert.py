@@ -17,15 +17,21 @@ from fugue_tune.exceptions import FugueTuneCompileError
 from fugue_tune.tunable import SimpleTunable, Tunable
 
 
-def tunable(distributable: bool = True) -> Callable[[Any], "_FuncAsTunable"]:
+def tunable(
+    func: Optional[Callable] = None,
+    distributable: Optional[bool] = None,
+) -> Callable[[Any], "_FuncAsTunable"]:
     def deco(func: Callable) -> "_FuncAsTunable":
         assert_or_throw(
             not is_class_method(func),
             NotImplementedError("tunable decorator can't be used on class methods"),
         )
-        return _FuncAsTunable.from_func(func)
+        return _FuncAsTunable.from_func(func, distributable=distributable)
 
-    return deco
+    if func is None:
+        return deco
+    else:
+        return deco(func)
 
 
 def _to_tunable(
