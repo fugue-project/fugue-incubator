@@ -2,11 +2,11 @@ import pandas as pd
 
 from fugue_tune.convert import tunable
 from fugue_tune.hyperopt import HyperoptRunner
-from fugue_tune.space import Choice, Rand, Space, Grid
+from fugue_tune import Choice, Rand, Space, Grid, RandInt
 
 from typing import Dict, Any
 from fugue import FugueWorkflow
-from fugue_tune.tuner import Tuner
+from fugue_tune.tune import space_to_df, tune
 
 
 def test_run():
@@ -30,12 +30,16 @@ def test_run():
 
 def test_wf():
     @tunable()
-    def func(a: float, b: float, c: int) -> float:
-        return a * a + b * b + c
+    def func(a: float, b: float, c: int, d: int) -> float:
+        return a * a + b * b + c + d
 
-    t = Tuner()
     with FugueWorkflow() as dag:
-        space = t.space_to_df(
-            dag, Space(a=Grid(1, 2), b=Rand(-100, 100), c=Choice(1, -1))
+        space = space_to_df(
+            dag,
+            Space(a=Grid(1, 2), b=Rand(-100, 100), c=Choice(1, -1), d=RandInt(0, 3)),
         )
-        t.tune(space, func, objective_runner=HyperoptRunner(100, seed=3)).show()
+        tune(space, func, objective_runner=HyperoptRunner(100, seed=3)).show()
+
+    with FugueWorkflow() as dag:
+        space = space_to_df(dag, Space(a=Grid(1, 2), b=Grid(0, 1), c=1, d=2))
+        tune(space, func, objective_runner=HyperoptRunner(100, seed=3)).show()
