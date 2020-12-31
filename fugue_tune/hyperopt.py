@@ -1,10 +1,11 @@
-from typing import Any, Dict, Tuple, Set
+from typing import Any, Dict, Set, Tuple
 
-from fugue_tune.tunable import Tunable
-from fugue_tune.tuner import ObjectiveRunner
-from fugue_tune.space import StochasticExpression, Rand, Choice
-from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 import numpy as np
+
+from fugue_tune.space import Choice, Rand, RandInt, StochasticExpression
+from fugue_tune.tune import ObjectiveRunner, Tunable
+from hyperopt import STATUS_OK, Trials, fmin, hp, tpe
+from fugue_tune.utils import normalize_hp
 
 
 class HyperoptRunner(ObjectiveRunner):
@@ -17,6 +18,8 @@ class HyperoptRunner(ObjectiveRunner):
     ) -> Dict[str, Any]:
         static_params, stochastic_params = self._split(kwargs)
         keys = list(stochastic_params.keys())
+        if len(keys) == 0:
+            return super().run(tunable, kwargs, hp_keys)
 
         def obj(args) -> Dict[str, Any]:
             params = {k: v for k, v in zip(keys, args)}
@@ -41,18 +44,22 @@ class HyperoptRunner(ObjectiveRunner):
             rstate=np.random.RandomState(self._seed),
         )
 
-        return {
-            "error": trials.best_trial["result"]["error"],
-            "hp": trials.best_trial["result"]["hp"],
-            "metadata": trials.best_trial["result"]["metadata"],
-        }
+        return normalize_hp(
+            {
+                "error": trials.best_trial["result"]["error"],
+                "hp": trials.best_trial["result"]["hp"],
+                "metadata": trials.best_trial["result"]["metadata"],
+            }
+        )
 
     def _split(self, kwargs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         static_params: Dict[str, Any] = {}
         stochastic_params: Dict[str, Any] = {}
         for k, v in kwargs.items():
             if isinstance(v, StochasticExpression):
-                if isinstance(v, Rand):
+                if isinstance(v, RandInt):
+                    stochastic_params[k] = self.convert_randint(k, v)
+                elif isinstance(v, Rand):
                     stochastic_params[k] = self.convert_rand(k, v)
                 elif isinstance(v, Choice):
                     stochastic_params[k] = self.convert_choice(k, v)
@@ -61,6 +68,11 @@ class HyperoptRunner(ObjectiveRunner):
             else:
                 static_params[k] = v
         return static_params, stochastic_params
+
+    def convert_randint(self, k: str, v: RandInt) -> Any:
+        if not v.log and not v.normal:
+            return hp.randint(k, v.start, v.end + 1)
+        raise NotImplementedError(k, v)  # pragma: no cover
 
     def convert_rand(self, k: str, v: Rand) -> Any:
         if v.q is None and not v.log and not v.normal:

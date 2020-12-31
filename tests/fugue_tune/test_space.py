@@ -1,15 +1,9 @@
+import json
+
 from pytest import raises
 
-from fugue_tune.space import (
-    Choice,
-    Grid,
-    HorizontalSpace,
-    Rand,
-    Space,
-    VerticalSpace,
-    decode,
-)
-import json
+from fugue_tune import Choice, Grid, Rand, RandInt, Space, decode
+from fugue_tune.space import HorizontalSpace, VerticalSpace
 
 
 def test_single_space():
@@ -150,6 +144,7 @@ def test_encode_decode():
         c=Choice(1, 2, 3),
         d=[Grid(1, 2), Rand(0, 2.0)],
         e={"x": "xx", "y": Choice("a", "b")},
+        f=RandInt(0, 10, log=False, normal=True),
     )
     actual = [decode(x) for x in s1.encode()]
     assert list(s1) == actual

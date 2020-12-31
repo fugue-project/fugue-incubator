@@ -4,7 +4,7 @@ import numpy as np
 from pytest import raises
 
 from fugue_tune.exceptions import FugueTuneRuntimeError
-from fugue_tune.tunable import SimpleTunable
+from fugue_tune import SimpleTunable, Grid, Space
 
 
 def test_tunable():
@@ -25,6 +25,27 @@ def test_tunable():
     raises(FugueTuneRuntimeError, lambda: t.hp)
     raises(FugueTuneRuntimeError, lambda: t.metadata)
     raises(FugueTuneRuntimeError, lambda: t.execution_engine)
+
+
+def test_tunable_with_space():
+    t = _MockTunable()
+    s1 = Space(a=Grid(0, 1))
+    s2 = Space(b=Grid(3, 4))
+    assert [
+        {"a": 0, "b": 3},
+        {"a": 0, "b": 4},
+        {"a": 1, "b": 3},
+        {"a": 1, "b": 4},
+    ] == list(t.space(s1, s2).space.encode())
+    assert [{"a": 0, "b": 10}, {"a": 1, "b": 10}] == list(
+        t.space(a=Grid(0, 1), b=10).space.encode()
+    )
+    assert [
+        {"a": 0, "b": 3},
+        {"a": 0, "b": 4},
+        {"a": 1, "b": 3},
+        {"a": 1, "b": 4},
+    ] == list(t.space(s1, b=Grid(3, 4)).space.encode())
 
 
 class _MockTunable(SimpleTunable):

@@ -63,6 +63,27 @@ class Rand(StochasticExpression):
         return res
 
 
+class RandInt(Rand):
+    def __init__(
+        self,
+        start: int,
+        end: int,
+        log: bool = False,
+        normal: bool = False,
+    ):
+        super().__init__(start, end, q=1, log=log, normal=normal)
+
+    @property
+    def jsondict(self) -> Dict[str, Any]:
+        return dict(
+            _expr_="randint",
+            start=self.start,
+            end=self.end,
+            log=self.log,
+            normal=self.normal,
+        )
+
+
 def decode(value: Any) -> Any:
     if isinstance(value, str):
         return value
@@ -75,6 +96,8 @@ def decode(value: Any) -> Any:
                 return Choice(*value["values"])
             if e == "rand":
                 return Rand(**value)
+            if e == "randint":
+                return RandInt(**value)
             raise ValueError(e)  # pragma: no cover
         else:
             return {k: decode(v) for k, v in value.items()}
