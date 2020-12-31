@@ -1,5 +1,15 @@
 from pytest import raises
-from fugue_tune.space import Grid, Space, HorizontalSpace, VerticalSpace
+
+from fugue_tune.space import (
+    Choice,
+    Grid,
+    HorizontalSpace,
+    Rand,
+    Space,
+    VerticalSpace,
+    decode,
+)
+import json
 
 
 def test_single_space():
@@ -131,3 +141,17 @@ def test_operators():
         dict(c="a"),
         dict(c="b"),
     ] == list(s1 + [dict(c="a"), dict(c="b")])
+
+
+def test_encode_decode():
+    s1 = Space(
+        a=Grid(1, 2),
+        b=Rand(0, 1.0, 0.2, log=True, normal=False),
+        c=Choice(1, 2, 3),
+        d=[Grid(1, 2), Rand(0, 2.0)],
+        e={"x": "xx", "y": Choice("a", "b")},
+    )
+    actual = [decode(x) for x in s1.encode()]
+    assert list(s1) == actual
+    for x in s1.encode():
+        print(json.dumps(x, indent=2))

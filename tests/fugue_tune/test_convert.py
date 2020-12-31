@@ -28,6 +28,18 @@ def test_to_tunable():
     def t6(a: int, e: ExecutionEngine) -> float:
         pass
 
+    def t7(**kwargs) -> float:
+        pass
+
+    def t8(**kwargs: int) -> float:
+        pass
+
+    def t9(a: int, **kwargs: int) -> float:
+        pass
+
+    def t10(e: ExecutionEngine, a: int, **kwargs: int) -> float:
+        pass
+
     assert t1 is _to_tunable(t1)._func
     assert _to_tunable(t1).distributable
     assert _to_tunable(t1, distributable=True).distributable
@@ -39,6 +51,10 @@ def test_to_tunable():
     assert t5 is _to_tunable(t5)._func
     assert not _to_tunable(t5).distributable
     assert not _to_tunable(t5, distributable=False).distributable
+
+    assert t8 is _to_tunable(t8)._func
+    assert t9 is _to_tunable(t9)._func
+    assert t10 is _to_tunable(t10)._func
     # with execution engine, distributable can't be true
     raises(FugueTuneCompileError, lambda: _to_tunable(t5, distributable=True))
 
