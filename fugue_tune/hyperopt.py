@@ -3,8 +3,7 @@ from typing import Any, Dict, Set, Tuple
 import numpy as np
 
 from fugue_tune.space import Choice, Rand, RandInt, StochasticExpression
-from fugue_tune.tunable import Tunable
-from fugue_tune.tune import ObjectiveRunner
+from fugue_tune.tune import ObjectiveRunner, Tunable
 from hyperopt import STATUS_OK, Trials, fmin, hp, tpe
 from fugue_tune.utils import normalize_hp
 

@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Tuple
 from fugue import ExecutionEngine
 from pytest import raises
 
-from fugue_tune.convert import _to_tunable, tunable
+from fugue_tune.tune import _to_tunable, tunable
 from fugue_tune.exceptions import FugueTuneCompileError, FugueTuneRuntimeError
 
 

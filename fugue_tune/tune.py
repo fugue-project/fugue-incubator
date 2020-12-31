@@ -2,7 +2,17 @@ import copy
 import json
 import os
 import random
-from typing import Any, Dict, Iterable, List, Optional, Set, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Union,
+    no_type_check,
+)
 from uuid import uuid4
 
 import pandas as pd
@@ -16,17 +26,209 @@ from fugue import (
     Transformer,
     WorkflowDataFrame,
 )
-from triad import ParamDict
-from triad.utils.convert import get_caller_global_local_vars
+from fugue._utils.interfaceless import (
+    FunctionWrapper,
+    _ExecutionEngineParam,
+    _FuncParam,
+    _OtherParam,
+    is_class_method,
+)
+from triad import ParamDict, assert_or_throw
+from triad.utils.convert import get_caller_global_local_vars, to_function
 
-import fugue_tune.convert as fc
-import fugue_tune.tunable as ft
+from fugue_tune.exceptions import FugueTuneCompileError, FugueTuneRuntimeError
 from fugue_tune.space import Space, decode
+import inspect
+
+
+class Tunable(object):
+    def run(self, **kwargs: Any) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+    def report(self, result: Dict[str, Any]) -> None:
+        self._error = float(result["error"])
+        self._hp = ParamDict(result.get("hp", None))
+        self._metadata = ParamDict(result.get("metadata", None))
+
+    @property
+    def error(self) -> float:
+        try:
+            return self._error
+        except Exception:
+            raise FugueTuneRuntimeError("error is not set")
+
+    @property
+    def hp(self) -> ParamDict:
+        try:
+            return self._hp
+        except Exception:
+            raise FugueTuneRuntimeError("hp is not set")
+
+    @property
+    def metadata(self) -> ParamDict:
+        try:
+            return self._metadata
+        except Exception:
+            raise FugueTuneRuntimeError("metadata is not set")
+
+    @property
+    def distributable(self) -> bool:  # pragma: no cover
+        return True
+
+    @property
+    def execution_engine(self) -> ExecutionEngine:
+        # pylint: disable=no-member
+        try:
+            return self._execution_engine  # type: ignore
+        except Exception:
+            raise FugueTuneRuntimeError("execution_engine is not set")
+
+    def space(self, **kwargs: Any) -> "TunableWithSpace":
+        return TunableWithSpace(self, Space(**kwargs))
+
+
+class SimpleTunable(Tunable):
+    def tune(self, **kwargs: Any) -> Dict[str, Any]:  # pragma: no cover
+        raise NotImplementedError
+
+    def run(self, **kwargs: Any) -> None:
+        res = self.tune(**kwargs)
+        if "hp" not in res:
+            res["hp"] = kwargs
+        self.report(res)
+
+
+def tunable(
+    func: Optional[Callable] = None,
+    distributable: Optional[bool] = None,
+) -> Callable[[Any], "_FuncAsTunable"]:
+    def deco(func: Callable) -> "_FuncAsTunable":
+        assert_or_throw(
+            not is_class_method(func),
+            NotImplementedError("tunable decorator can't be used on class methods"),
+        )
+        return _FuncAsTunable.from_func(func, distributable=distributable)
+
+    if func is None:
+        return deco
+    else:
+        return deco(func)
+
+
+def _to_tunable(
+    obj: Any,
+    global_vars: Optional[Dict[str, Any]] = None,
+    local_vars: Optional[Dict[str, Any]] = None,
+    distributable: Optional[bool] = None,
+) -> Tunable:
+    global_vars, local_vars = get_caller_global_local_vars(global_vars, local_vars)
+
+    def get_tunable() -> Tunable:
+        if isinstance(obj, Tunable):
+            return copy.copy(obj)
+        try:
+            f = to_function(obj, global_vars=global_vars, local_vars=local_vars)
+            # this is for string expression of function with decorator
+            if isinstance(f, Tunable):
+                return copy.copy(f)
+            # this is for functions without decorator
+            return _FuncAsTunable.from_func(f, distributable)
+        except Exception as e:
+            exp = e
+        raise FugueTuneCompileError(f"{obj} is not a valid tunable function", exp)
+
+    t = get_tunable()
+    if distributable is None:
+        distributable = t.distributable
+    elif distributable:
+        assert_or_throw(
+            t.distributable, FugueTuneCompileError(f"{t} is not distributable")
+        )
+    return t
+
+
+class _SingleParam(_FuncParam):
+    def __init__(self, param: Optional[inspect.Parameter]):
+        super().__init__(param, "float", "s")
+
+
+class _DictParam(_FuncParam):
+    def __init__(self, param: Optional[inspect.Parameter]):
+        super().__init__(param, "Dict[str,Any]", "d")
+
+
+class _TunableWrapper(FunctionWrapper):
+    def __init__(self, func: Callable):
+        super().__init__(func, "^e?[^e]+$", "^[sd]$")
+
+    def _parse_param(
+        self,
+        annotation: Any,
+        param: Optional[inspect.Parameter],
+        none_as_other: bool = True,
+    ) -> _FuncParam:
+        if annotation is float:
+            return _SingleParam(param)
+        elif annotation is Dict[str, Any]:
+            return _DictParam(param)
+        elif annotation is ExecutionEngine:
+            return _ExecutionEngineParam(param)
+        else:
+            return _OtherParam(param)
+
+    @property
+    def single(self) -> bool:
+        return isinstance(self._rt, _SingleParam)
+
+    @property
+    def needs_engine(self) -> bool:
+        return isinstance(self._params.get_value_by_index(0), _ExecutionEngineParam)
+
+
+class _FuncAsTunable(SimpleTunable):
+    @no_type_check
+    def tune(self, **kwargs: Any) -> Dict[str, Any]:
+        # pylint: disable=no-member
+        args: List[Any] = [self.execution_engine] if self._needs_engine else []
+        if self._single:
+            return dict(error=self._func(*args, **kwargs))
+        else:
+            return self._func(*args, **kwargs)
+
+    @no_type_check
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._func(*args, **kwargs)
+
+    @property
+    def distributable(self) -> bool:
+        return self._distributable  # type: ignore
+
+    @no_type_check
+    @staticmethod
+    def from_func(
+        func: Callable, distributable: Optional[bool] = None
+    ) -> "_FuncAsTunable":
+        t = _FuncAsTunable()
+        tw = _TunableWrapper(func)
+        t._func = tw._func
+        t._single = tw.single
+        t._needs_engine = tw.needs_engine
+        if distributable is None:
+            t._distributable = not tw.needs_engine
+        else:
+            if distributable:
+                assert_or_throw(
+                    not tw.needs_engine,
+                    "function with ExecutionEngine can't be distributable",
+                )
+            t._distributable = distributable
+
+        return t
 
 
 class ObjectiveRunner(object):
     def run(
-        self, tunable: "ft.Tunable", kwargs: Dict[str, Any], hp_keys: Set[str]
+        self, tunable: Tunable, kwargs: Dict[str, Any], hp_keys: Set[str]
     ) -> Dict[str, Any]:
         tunable.run(**kwargs)
         hp = {k: v for k, v in tunable.hp.items() if k in hp_keys}
@@ -34,12 +236,12 @@ class ObjectiveRunner(object):
 
 
 class TunableWithSpace(object):
-    def __init__(self, tunable: "ft.Tunable", space: Space):
+    def __init__(self, tunable: Tunable, space: Space):
         self._tunable = copy.copy(tunable)
         self._space = space
 
     @property
-    def tunable(self) -> "ft.Tunable":
+    def tunable(self) -> Tunable:
         return self._tunable
 
     @property
@@ -86,7 +288,7 @@ def tune(  # noqa: C901
     distributable: Optional[bool] = None,
     objective_runner: Optional[ObjectiveRunner] = None,
 ) -> WorkflowDataFrame:
-    t = fc._to_tunable(  # type: ignore
+    t = _to_tunable(  # type: ignore
         tunable, *get_caller_global_local_vars(), distributable
     )
     if distributable is None:

@@ -4,7 +4,7 @@ import numpy as np
 from pytest import raises
 
 from fugue_tune.exceptions import FugueTuneRuntimeError
-from fugue_tune.tunable import SimpleTunable
+from fugue_tune import SimpleTunable
 
 
 def test_tunable():

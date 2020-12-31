@@ -1,11 +1,10 @@
+from typing import Any, Dict
+
 import pandas as pd
-
-from fugue_tune.convert import tunable
-from fugue_tune.hyperopt import HyperoptRunner
-from fugue_tune import Choice, Rand, Space, Grid, RandInt
-
-from typing import Dict, Any
 from fugue import FugueWorkflow
+
+from fugue_tune import Choice, Grid, Rand, RandInt, Space, tunable
+from fugue_tune.hyperopt import HyperoptRunner
 from fugue_tune.tune import space_to_df, tune
 
 
