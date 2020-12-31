@@ -10,7 +10,6 @@ from typing import (
     List,
     Optional,
     Set,
-    Union,
     no_type_check,
 )
 from uuid import uuid4
@@ -25,6 +24,7 @@ from fugue import (
     LocalDataFrame,
     Transformer,
     WorkflowDataFrame,
+    WorkflowDataFrames,
 )
 from fugue._utils.interfaceless import (
     FunctionWrapper,
@@ -83,8 +83,19 @@ class Tunable(object):
         except Exception:
             raise FugueTuneRuntimeError("execution_engine is not set")
 
-    def space(self, **kwargs: Any) -> "TunableWithSpace":
-        return TunableWithSpace(self, Space(**kwargs))
+    def space(self, *args: Space, **kwargs: Any) -> "TunableWithSpace":
+        space = Space(
+            **{k: v for k, v in kwargs.items() if not isinstance(v, WorkflowDataFrame)}
+        )
+        if len(args) > 0:
+            s = args[0]
+            for x in args[1:]:
+                s = s * x
+            space = s * space
+        dfs = WorkflowDataFrames(
+            {k: v for k, v in kwargs.items() if isinstance(v, WorkflowDataFrame)}
+        )
+        return TunableWithSpace(self, space, dfs)
 
 
 class SimpleTunable(Tunable):
@@ -236,9 +247,10 @@ class ObjectiveRunner(object):
 
 
 class TunableWithSpace(object):
-    def __init__(self, tunable: Tunable, space: Space):
+    def __init__(self, tunable: Tunable, space: Space, dfs: WorkflowDataFrames):
         self._tunable = copy.copy(tunable)
         self._space = space
+        self._dfs = dfs
 
     @property
     def tunable(self) -> Tunable:
@@ -248,22 +260,28 @@ class TunableWithSpace(object):
     def space(self) -> Space:
         return self._space
 
+    @property
+    def dfs(self) -> WorkflowDataFrames:
+        return self._dfs
+
     def tune(
         self,
-        source: Union[WorkflowDataFrame, FugueWorkflow] = None,
+        workflow: Optional[FugueWorkflow] = None,
         distributable: Optional[bool] = None,
         objective_runner: Optional[ObjectiveRunner] = None,
-        df_name: str = "df",
+        how: str = "inner",
         serialize_path: str = "",
         batch_size: int = 1,
         shuffle: bool = True,
     ) -> WorkflowDataFrame:
-        if isinstance(source, WorkflowDataFrame):
-            df = source
-            data = serialize_df(df, name=df_name, path=serialize_path)
+        if len(self.dfs) > 0:
+            data = serialize_dfs(self.dfs, path=serialize_path, how=how)
             space_df = space_to_df(
-                df.workflow, self.space, batch_size=batch_size, shuffle=shuffle
-            )
+                data.workflow,
+                self.space,
+                batch_size=batch_size,
+                shuffle=shuffle,
+            ).broadcast()
             return tune(
                 data.cross_join(space_df),
                 tunable=self.tunable,
@@ -271,9 +289,12 @@ class TunableWithSpace(object):
                 objective_runner=objective_runner,
             )
         else:
-            space_df = space_to_df(
-                source, self.space, batch_size=batch_size, shuffle=shuffle
+            assert_or_throw(
+                workflow is not None, FugueTuneCompileError("workflow is required")
             )
+            space_df = space_to_df(
+                workflow, self.space, batch_size=batch_size, shuffle=shuffle
+            ).broadcast()
             return tune(
                 space_df,
                 tunable=self.tunable,
@@ -373,6 +394,17 @@ def serialize_df(df: WorkflowDataFrame, name: str, path: str = "") -> WorkflowDa
                 )
 
         return df.transform(SavePartition, params={"path": path, "name": name})
+
+
+def serialize_dfs(
+    dfs: WorkflowDataFrames, how: str = "inner", path=""
+) -> WorkflowDataFrame:
+    assert_or_throw(dfs.has_key, "all datarames must be named")
+    serialized = WorkflowDataFrames(
+        {k: serialize_df(v, k, path) for k, v in dfs.items()}
+    )
+    wf: FugueWorkflow = dfs.get_value_by_index(0).workflow
+    return wf.join(serialized, how=how)
 
 
 def space_to_df(

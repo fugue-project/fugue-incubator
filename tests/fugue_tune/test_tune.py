@@ -1,5 +1,5 @@
 import json
-from typing import Any, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 import pandas as pd
 from fugue import (
@@ -63,7 +63,7 @@ def test_tune_simple():
         with FugueWorkflow() as dag:
             df = space_to_df(dag, Space(a=Grid(0, 1), b=Grid(2, 3)))
             tune(df, t2, distributable=distributable).show()
-            
+
     # equivalent syntax sugar
     with FugueWorkflow() as dag:
         t2.space(a=Grid(0, 1), b=Grid(2, 3)).tune(dag).show()
@@ -91,4 +91,16 @@ def test_tune_df(tmpdir):
     for distributable in [True, False, None]:
         with FugueWorkflow(e) as dag:
             df = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int")
-            t1.space(a=Grid(0, 1), b=Grid(2, 3)).tune(df).show()
+            t1.space(a=Grid(0, 1), b=Grid(2, 3), df=df).tune().show()
+
+    @tunable()
+    def t2(df1: pd.DataFrame, df2: pd.DataFrame, a: int, b: int) -> Dict[str, Any]:
+        return {
+            "error": float(a + b + df1["y"].sum() + df2["y"].sum()),
+            "metadata": {"a": a},
+        }
+
+    with FugueWorkflow(e) as dag:
+        df1 = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
+        df2 = dag.df([[0, 10], [0, 20]], "x:int,y:int").partition(by=["x"])
+        t2.space(df1=df1, df2=df2, a=Grid(0, 1), b=Grid(2, 3)).tune().show()
