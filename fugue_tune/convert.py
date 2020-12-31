@@ -14,7 +14,7 @@ from triad import assert_or_throw
 from triad.utils.convert import get_caller_global_local_vars, to_function
 
 from fugue_tune.exceptions import FugueTuneCompileError
-from fugue_tune.tunable import SimpleTunable, Tunable
+import fugue_tune.tunable as ft
 
 
 def tunable(
@@ -39,16 +39,16 @@ def _to_tunable(
     global_vars: Optional[Dict[str, Any]] = None,
     local_vars: Optional[Dict[str, Any]] = None,
     distributable: Optional[bool] = None,
-) -> Tunable:
+) -> ft.Tunable:
     global_vars, local_vars = get_caller_global_local_vars(global_vars, local_vars)
 
-    def get_tunable() -> Tunable:
-        if isinstance(obj, Tunable):
+    def get_tunable() -> ft.Tunable:
+        if isinstance(obj, ft.Tunable):
             return copy.copy(obj)
         try:
             f = to_function(obj, global_vars=global_vars, local_vars=local_vars)
             # this is for string expression of function with decorator
-            if isinstance(f, Tunable):
+            if isinstance(f, ft.Tunable):
                 return copy.copy(f)
             # this is for functions without decorator
             return _FuncAsTunable.from_func(f, distributable)
@@ -104,7 +104,7 @@ class _TunableWrapper(FunctionWrapper):
         return isinstance(self._params.get_value_by_index(0), _ExecutionEngineParam)
 
 
-class _FuncAsTunable(SimpleTunable):
+class _FuncAsTunable(ft.SimpleTunable):
     @no_type_check
     def tune(self, **kwargs: Any) -> Dict[str, Any]:
         # pylint: disable=no-member
