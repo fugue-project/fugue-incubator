@@ -1,5 +1,7 @@
 from copy import deepcopy
-from typing import Any, Dict, Iterable, List, Tuple, no_type_check, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple, no_type_check
+
+from triad import assert_or_throw
 
 from fugue_tune.iter import dict_product, product
 
@@ -128,6 +130,12 @@ class Space(object):
 
     def __add__(self, other: Any) -> "VerticalSpace":
         return VerticalSpace(self, other)
+
+    def __radd__(self, other: Any) -> "Space":
+        assert_or_throw(
+            other is None or (isinstance(other, int) and other == 0), ValueError(other)
+        )
+        return self
 
     def _search(self, parent: Any, key: Any) -> None:
         node = parent[key]

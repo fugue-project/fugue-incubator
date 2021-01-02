@@ -136,6 +136,21 @@ def test_operators():
         dict(c="b"),
     ] == list(s1 + [dict(c="a"), dict(c="b")])
 
+    s1 = Space(a=1, b=Grid(2, 3))
+    s2 = Space(c=Grid("a", "b"))
+    s3 = Space(d=5)
+    assert (
+        [
+            dict(a=1, b=2),
+            dict(a=1, b=3),
+            dict(c="a"),
+            dict(c="b"),
+            dict(d=5),
+        ]
+        == list(sum([s1, s2, s3]))
+        == list(sum([s1, s2, s3], None))
+    )
+
 
 def test_encode_decode():
     s1 = Space(
