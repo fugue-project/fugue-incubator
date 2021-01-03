@@ -37,6 +37,7 @@ def test_tunable_sk_cv(tmpdir):
         _create_mock_data(),
         _sk__scoring="neg_mean_absolute_error",
         _sk__label_col="l",
+        _sk__feature_prefix="f_",
         fit_intercept=True,
     )
     assert res["error"] < 0.1
@@ -49,6 +50,7 @@ def test_tunable_sk_cv(tmpdir):
         "sklearn.linear_model.LinearRegression",
         _create_mock_data(),
         _sk__scoring="neg_mean_absolute_error",
+        _sk__feature_prefix="f_",
         _sk__label_col="l",
         _sk__save_path=str(tmpdir),
         fit_intercept=True,
@@ -71,6 +73,7 @@ def test_build_sk_cv(tmpdir):
         scoring="neg_mean_absolute_error",
         cv=4,
         label_col="l",
+        feature_prefix="f_",
         save_path=str(tmpdir),
     ).tune(distributable=False, serialize_path=str(tmpdir)).show()
     dag.run()
@@ -78,6 +81,7 @@ def test_build_sk_cv(tmpdir):
 
 def _create_mock_data():
     np.random.seed(0)
-    df = pd.DataFrame(np.random.rand(100, 3), columns=list("abc"))
-    df["l"] = df["a"] * 3 + df["b"] * 4 + df["c"] * 5 + 100
+    df = pd.DataFrame(np.random.rand(100, 3), columns=["f_a", "f_b", "f_c"])
+    df["d"] = "x"
+    df["l"] = df["f_a"] * 3 + df["f_b"] * 4 + df["f_c"] * 5 + 100
     return df

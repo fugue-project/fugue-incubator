@@ -23,6 +23,7 @@ def build_sk_cv(
     train_df: WorkflowDataFrame,
     scoring: str,
     cv: int = 5,
+    feature_prefix: str = "",
     label_col: str = "label",
     save_path: str = "",
 ) -> TunableWithSpace:
@@ -30,6 +31,7 @@ def build_sk_cv(
         _sk__train_df=train_df,
         _sk__scoring=scoring,
         _sk__cv=cv,
+        _sk__feature_prefix=feature_prefix,
         _sk__label_col=label_col,
         _sk__save_path=save_path,
     )
@@ -45,12 +47,15 @@ def _sk_cv(
     _sk__train_df: pd.DataFrame,
     _sk__scoring: Any,
     _sk__cv: int = 5,
+    _sk__feature_prefix: str = "",
     _sk__label_col: str = "label",
     _sk__save_path: str = "",
     **kwargs: Any,
 ) -> Dict[str, Any]:
     model = _to_model(_sk__model)(**kwargs)
     train_x = _sk__train_df.drop([_sk__label_col], axis=1)
+    cols = [x for x in train_x.columns if x.startswith(_sk__feature_prefix)]
+    train_x = train_x[cols]
     train_y = _sk__train_df[_sk__label_col]
 
     kf = KFold(n_splits=_sk__cv, random_state=0, shuffle=True)
