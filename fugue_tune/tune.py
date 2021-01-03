@@ -1,17 +1,9 @@
 import copy
+import inspect
 import json
 import os
 import random
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Set,
-    no_type_check,
-)
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, no_type_check
 from uuid import uuid4
 
 import pandas as pd
@@ -38,7 +30,6 @@ from triad.utils.convert import get_caller_global_local_vars, to_function
 
 from fugue_tune.exceptions import FugueTuneCompileError, FugueTuneRuntimeError
 from fugue_tune.space import Space, decode
-import inspect
 
 
 class Tunable(object):
@@ -425,3 +416,18 @@ def space_to_df(
             yield [json.dumps(res)]
 
     return wf.df(IterableDataFrame(get_data(), "__fmin_params__:str"))
+
+
+def select_best(df: WorkflowDataFrame, top: int = 1) -> WorkflowDataFrame:
+    def _top(df: pd.DataFrame, n: int) -> pd.DataFrame:
+        keys = [
+            k
+            for k in df.columns
+            if not k.startswith("__df_") and not k.startswith("__fmin_")
+        ]
+        if len(keys) == 0:
+            return df.sort_values("__fmin_value__").head(n)
+        else:
+            return df.sort_values("__fmin_value__").groupby(keys).head(n)
+
+    return df.process(_top, params=dict(n=top))

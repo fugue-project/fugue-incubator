@@ -11,7 +11,15 @@ from fugue import (
 )
 from pytest import raises
 
-from fugue_tune import Grid, Space, serialize_df, space_to_df, tunable, tune
+from fugue_tune import (
+    Grid,
+    Space,
+    select_best,
+    serialize_df,
+    space_to_df,
+    tunable,
+    tune,
+)
 from fugue_tune.exceptions import FugueTuneCompileError
 
 
@@ -104,3 +112,26 @@ def test_tune_df(tmpdir):
         df1 = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
         df2 = dag.df([[0, 10], [0, 20]], "x:int,y:int").partition(by=["x"])
         t2.space(df1=df1, df2=df2, a=Grid(0, 1), b=Grid(2, 3)).tune().show()
+
+
+def test_select_best(tmpdir):
+    def t1(a: int, b: int) -> float:
+        return a + b
+
+    with FugueWorkflow() as dag:
+        df = space_to_df(dag, Space(a=Grid(0, 1), b=Grid(2, 3)))
+        select_best(tune(df, t1, distributable=False)).show()
+
+    @tunable()
+    def t2(df1: pd.DataFrame, df2: pd.DataFrame, a: int, b: int) -> Dict[str, Any]:
+        return {
+            "error": float(a + b + df1["y"].sum() + df2["y"].sum()),
+            "metadata": {"a": a},
+        }
+
+    e = NativeExecutionEngine(conf={"fugue.temp.path": str(tmpdir)})
+    with FugueWorkflow(e) as dag:
+        df1 = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
+        df2 = dag.df([[0, 10], [1, 20]], "x:int,y:int").partition(by=["x"])
+        res = t2.space(df1=df1, df2=df2, a=Grid(0, 1), b=Grid(2, 3)).tune()
+        select_best(res, top=2).show()
