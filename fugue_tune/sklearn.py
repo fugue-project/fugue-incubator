@@ -18,7 +18,7 @@ from sklearn.model_selection import KFold, cross_val_score
 _EMPTY_DF = pd.DataFrame()
 
 
-def sk_cv_build(
+def build_sk_cv(
     space: Space,
     train_df: WorkflowDataFrame,
     scoring: str,

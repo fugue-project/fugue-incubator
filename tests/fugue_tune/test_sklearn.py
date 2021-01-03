@@ -8,7 +8,7 @@ from sklearn.base import is_classifier, is_regressor
 from sklearn.linear_model import LinearRegression
 
 from fugue_tune import Space
-from fugue_tune.sklearn import _sk_cv, _to_model, _to_model_str, sk_cv_build
+from fugue_tune.sklearn import _sk_cv, _to_model, _to_model_str, build_sk_cv
 from fugue_tune.sklearn import sk_space as ss
 from fugue_tune.space import Grid
 
@@ -57,7 +57,7 @@ def test_tunable_sk_cv(tmpdir):
     assert isinstance(obj, LinearRegression)
 
 
-def test_sk_cv_build(tmpdir):
+def test_build_sk_cv(tmpdir):
     space = sum(
         [
             ss(LinearRegression, fit_intercept=Grid(True, False)),
@@ -65,7 +65,7 @@ def test_sk_cv_build(tmpdir):
         ]
     )
     dag = FugueWorkflow()
-    sk_cv_build(
+    build_sk_cv(
         space,
         dag.df(_create_mock_data()),
         scoring="neg_mean_absolute_error",
