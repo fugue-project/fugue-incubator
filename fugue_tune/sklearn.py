@@ -36,10 +36,10 @@ def suggest_sk_model(
     partition_keys: List[str] = _EMPTY_LIST,
     top_n: int = 1,
     objective_runner: Optional[ObjectiveRunner] = None,
-    distributable: bool = False,
-    engine: Any = NativeExecutionEngine,
+    distributable: Optional[bool] = None,
+    execution_engine: Any = NativeExecutionEngine,
 ) -> List[Dict[str, Any]]:
-    e = to_instance(engine, ExecutionEngine)
+    e = to_instance(execution_engine, ExecutionEngine)
     model_path = serialize_path if save_model else ""
 
     dag = FugueWorkflow()
