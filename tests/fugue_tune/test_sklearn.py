@@ -10,6 +10,7 @@ from sklearn.linear_model import LinearRegression
 from fugue_tune import Space
 from fugue_tune.sklearn import _sk_cv, _to_model, _to_model_str, build_sk_cv
 from fugue_tune.sklearn import sk_space as ss
+from fugue_tune.sklearn import suggest_sk_model
 from fugue_tune.space import Grid
 
 
@@ -79,9 +80,31 @@ def test_build_sk_cv(tmpdir):
     dag.run()
 
 
+def test_suggest_sk_model(tmpdir):
+    space = sum(
+        [
+            ss(LinearRegression, fit_intercept=Grid(True, False)),
+            ss(LinearRegression, normalize=Grid(True, False)),
+        ]
+    )
+    res = suggest_sk_model(
+        space,
+        _create_mock_data(),
+        scoring="neg_mean_absolute_error",
+        serialize_path=str(tmpdir),
+        label_col="l",
+        feature_prefix="f_",
+        save_model=True,
+        partition_keys=["p"],
+    )
+    assert len(res) == 4
+    print(res)
+
+
 def _create_mock_data():
     np.random.seed(0)
     df = pd.DataFrame(np.random.rand(100, 3), columns=["f_a", "f_b", "f_c"])
     df["d"] = "x"
     df["l"] = df["f_a"] * 3 + df["f_b"] * 4 + df["f_c"] * 5 + 100
+    df["p"] = np.random.randint(low=0, high=4, size=(100, 1))
     return df
