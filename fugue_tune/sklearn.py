@@ -1,21 +1,69 @@
 import os
 import pickle
 from importlib import import_module
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import numpy as np
 import pandas as pd
-from fugue import WorkflowDataFrame
+from fugue import (
+    ExecutionEngine,
+    FugueWorkflow,
+    NativeExecutionEngine,
+    WorkflowDataFrame,
+)
 from triad import FileSystem, assert_or_throw
-from triad.utils.convert import get_full_type_path, to_type
+from triad.utils.convert import get_full_type_path, to_instance, to_type
 
 from fugue_tune.space import Space
-from fugue_tune.tune import TunableWithSpace, tunable
+from fugue_tune.tune import ObjectiveRunner, TunableWithSpace, select_best, tunable
 from sklearn.base import is_classifier, is_regressor
 from sklearn.model_selection import KFold, cross_val_score
 
 _EMPTY_DF = pd.DataFrame()
+_EMPTY_LIST: List[str] = []
+
+
+def suggest_sk_model(
+    space: Space,
+    train_df: Any,
+    scoring: str,
+    serialize_path: str,
+    cv: int = 5,
+    feature_prefix: str = "",
+    label_col: str = "label",
+    save_model: bool = False,
+    partition_keys: List[str] = _EMPTY_LIST,
+    top_n: int = 1,
+    objective_runner: Optional[ObjectiveRunner] = None,
+    distributable: bool = False,
+    engine: Any = NativeExecutionEngine,
+) -> List[Dict[str, Any]]:
+    e = to_instance(engine, ExecutionEngine)
+    model_path = serialize_path if save_model else ""
+
+    dag = FugueWorkflow()
+    df = dag.df(train_df)
+    if len(partition_keys) > 0:
+        df = df.partition(by=partition_keys)
+    skcv = build_sk_cv(
+        space=space,
+        train_df=dag.df(df),
+        scoring=scoring,
+        cv=cv,
+        feature_prefix=feature_prefix,
+        label_col=label_col,
+        save_path=model_path,
+    )
+    result = skcv.tune(
+        objective_runner=objective_runner,
+        distributable=distributable,
+        serialize_path=serialize_path,
+        shuffle=True,
+    ).persist()
+    best = select_best(result, top=top_n) if top_n > 0 else result
+    dag.run(e)
+    return list(best.result.as_dict_iterable())
 
 
 def build_sk_cv(
