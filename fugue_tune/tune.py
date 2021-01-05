@@ -264,6 +264,7 @@ class TunableWithSpace(object):
         serialize_path: str = "",
         batch_size: int = 1,
         shuffle: bool = True,
+        data_space_join_type: str = "cross",
     ) -> WorkflowDataFrame:
         if len(self.dfs) > 0:
             data = serialize_dfs(self.dfs, path=serialize_path, how=how)
@@ -274,7 +275,7 @@ class TunableWithSpace(object):
                 shuffle=shuffle,
             ).broadcast()
             return tune(
-                data.cross_join(space_df),
+                data.join(space_df, how=data_space_join_type),
                 tunable=self.tunable,
                 distributable=distributable,
                 objective_runner=objective_runner,
