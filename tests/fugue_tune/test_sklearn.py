@@ -182,10 +182,9 @@ def test_suggest_sk_stacking_model(tmpdir):
         label_col="l",
         feature_prefix="f_",
         save_model=True,
-        partition_keys=["p"],
         top_n=2,
     )
-    assert len(res) == 4
+    assert len(res) == 1
     print(res)
 
 

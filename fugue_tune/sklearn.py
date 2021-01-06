@@ -135,8 +135,12 @@ def suggest_sk_stacking_model(
         params=dict(keys=partition_keys, space=stack_space * kwargs),
     )
     data = serialize_df(df, name="_sk__train_df", path=serialize_path)
+    if len(partition_keys) > 0:
+        data = data.inner_join(space_df.broadcast())
+    else:
+        data = data.cross_join(space_df.broadcast())
     best = tune(
-        data.join(space_df.broadcast(), how="inner"),
+        data,
         tunable=tunable(_sk_stack_cv),
         distributable=distributable,
         objective_runner=objective_runner,
