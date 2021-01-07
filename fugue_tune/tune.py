@@ -446,18 +446,26 @@ def visualize_top_n(df: WorkflowDataFrame, top: int = 0) -> None:
             if not k.startswith("__df_") and not k.startswith("__fmin_")
         ]
 
-        def show(subdf: Iterable[Dict[str, Any]]) -> None:
-            if len(keys) > 0:
-                print(keys)
-            pdf = pd.DataFrame([json.loads(x["__fmin_params__"]) for x in subdf])
+        def show(subdf: pd.DataFrame) -> None:
+            subdf = subdf.sort_values("__fmin_value__").head(top)
+            title = ", ".join(str(subdf[k][0]) for k in keys) if len(keys) > 0 else ""
+            pdf = pd.DataFrame([json.loads(x) for x in subdf["__fmin_params__"]])
             fig = plt.figure(figsize=(12, 3 * len(pdf.columns)))
+            if len(keys) > 0:
+                fig.suptitle(
+                    title,
+                    va="center",
+                    size=20,
+                    weight="bold",
+                    y=0.93,
+                )
             for i in range(len(pdf.columns)):
                 ax = fig.add_subplot(len(pdf.columns), 1, i + 1)
                 pdf[pdf.columns[i]].hist(ax=ax).set_title(pdf.columns[i])
                 plt.subplots_adjust(hspace=0.5)
 
         if len(keys) == 0:
-            show(df.as_dict_iterable())
+            show(df.as_pandas())
         else:
             with FugueWorkflow() as dag:
                 dag.df(df).partition(by=keys).out_transform(show)
