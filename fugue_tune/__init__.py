@@ -9,4 +9,5 @@ from fugue_tune.tune import (
     space_to_df,
     tunable,
     tune,
+    visualize_top_n,
 )

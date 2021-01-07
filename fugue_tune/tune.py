@@ -30,6 +30,7 @@ from triad.utils.convert import get_caller_global_local_vars, to_function
 
 from fugue_tune.exceptions import FugueTuneCompileError, FugueTuneRuntimeError
 from fugue_tune.space import Space, decode
+import matplotlib.pyplot as plt
 
 
 class Tunable(object):
@@ -432,3 +433,33 @@ def select_best(df: WorkflowDataFrame, top: int = 1) -> WorkflowDataFrame:
             return df.sort_values("__fmin_value__").groupby(keys).head(n)
 
     return df.process(_top, params=dict(n=top))
+
+
+def visualize_top_n(df: WorkflowDataFrame, top: int = 0) -> None:
+    if top <= 0:
+        return
+
+    def outputter(df: LocalDataFrame) -> None:
+        keys = [
+            k
+            for k in df.schema.names
+            if not k.startswith("__df_") and not k.startswith("__fmin_")
+        ]
+
+        def show(subdf: Iterable[Dict[str, Any]]) -> None:
+            if len(keys) > 0:
+                print(keys)
+            pdf = pd.DataFrame([json.loads(x["__fmin_params__"]) for x in subdf])
+            fig = plt.figure(figsize=(12, 3 * len(pdf.columns)))
+            for i in range(len(pdf.columns)):
+                ax = fig.add_subplot(len(pdf.columns), 1, i + 1)
+                pdf[pdf.columns[i]].hist(ax=ax).set_title(pdf.columns[i])
+                plt.subplots_adjust(hspace=0.5)
+
+        if len(keys) == 0:
+            show(df.as_dict_iterable())
+        else:
+            with FugueWorkflow() as dag:
+                dag.df(df).partition(by=keys).out_transform(show)
+
+    df.output(outputter)
