@@ -131,6 +131,7 @@ def test_suggest_sk_model(tmpdir):
         feature_prefix="f_",
         save_model=True,
         partition_keys=["p"],
+        visualize_top_n=2,
     )
     assert len(res) == 4
     print(res)

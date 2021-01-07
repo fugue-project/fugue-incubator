@@ -447,15 +447,21 @@ def visualize_top_n(df: WorkflowDataFrame, top: int = 0) -> None:
         ]
 
         def show(subdf: pd.DataFrame) -> None:
+            if subdf.shape[0] == 0:
+                return
             subdf = subdf.sort_values("__fmin_value__").head(top)
-            title = ", ".join(str(subdf[k][0]) for k in keys) if len(keys) > 0 else ""
+            title = (
+                json.dumps({k: str(subdf[k].iloc[0]) for k in keys})
+                if len(keys) > 0
+                else ""
+            )
             pdf = pd.DataFrame([json.loads(x) for x in subdf["__fmin_params__"]])
             fig = plt.figure(figsize=(12, 3 * len(pdf.columns)))
             if len(keys) > 0:
                 fig.suptitle(
                     title,
                     va="center",
-                    size=20,
+                    size=15,
                     weight="bold",
                     y=0.93,
                 )
