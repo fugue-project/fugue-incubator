@@ -19,6 +19,7 @@ from fugue_tune import (
     space_to_df,
     tunable,
     tune,
+    visualize_top_n,
 )
 from fugue_tune.exceptions import FugueTuneCompileError
 
@@ -135,3 +136,26 @@ def test_select_best(tmpdir):
         df2 = dag.df([[0, 10], [1, 20]], "x:int,y:int").partition(by=["x"])
         res = t2.space(df1=df1, df2=df2, a=Grid(0, 1), b=Grid(2, 3)).tune()
         select_best(res, top=2).show()
+
+
+def test_visualize_top_n(tmpdir):
+    def t1(a: int, b: int) -> float:
+        return a + b
+
+    with FugueWorkflow() as dag:
+        df = space_to_df(dag, Space(a=Grid(0, 1), b=Grid(2, 3)))
+        visualize_top_n(tune(df, t1, distributable=False), top=2)
+
+    @tunable()
+    def t2(df1: pd.DataFrame, df2: pd.DataFrame, a: int, b: int) -> Dict[str, Any]:
+        return {
+            "error": float(a + b + df1["y"].sum() + df2["y"].sum()),
+            "metadata": {"a": a},
+        }
+
+    e = NativeExecutionEngine(conf={"fugue.temp.path": str(tmpdir)})
+    with FugueWorkflow(e) as dag:
+        df1 = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
+        df2 = dag.df([[0, 10], [1, 20]], "x:int,y:int").partition(by=["x"])
+        res = t2.space(df1=df1, df2=df2, a=Grid(0, 1), b=Grid(2, 3)).tune()
+        visualize_top_n(res, top=2)

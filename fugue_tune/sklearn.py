@@ -26,6 +26,7 @@ from fugue_tune.tune import (
     space_to_df,
     tunable,
     tune,
+    visualize_top_n as visualize_top,
 )
 from sklearn.ensemble import StackingClassifier, StackingRegressor
 from sklearn.model_selection import cross_val_score
@@ -46,6 +47,7 @@ def suggest_sk_model(
     save_model: bool = False,
     partition_keys: List[str] = _EMPTY_LIST,
     top_n: int = 1,
+    visualize_top_n: int = 0,
     objective_runner: Optional[ObjectiveRunner] = None,
     distributable: Optional[bool] = None,
     execution_engine: Any = NativeExecutionEngine,
@@ -73,6 +75,7 @@ def suggest_sk_model(
         shuffle=True,
     ).persist()
     best = select_best(result, top=top_n) if top_n > 0 else result
+    visualize_top(result, top=visualize_top_n)
     dag.run(e)
     return list(best.result.as_dict_iterable())
 
@@ -89,6 +92,7 @@ def suggest_sk_stacking_model(
     save_model: bool = False,
     partition_keys: List[str] = _EMPTY_LIST,
     top_n: int = 1,
+    visualize_top_n: int = 0,
     objective_runner: Optional[ObjectiveRunner] = None,
     distributable: Optional[bool] = None,
     execution_engine: Any = NativeExecutionEngine,
@@ -139,13 +143,14 @@ def suggest_sk_stacking_model(
         data = data.inner_join(space_df.broadcast())
     else:
         data = data.cross_join(space_df.broadcast())
-    best = tune(
+    result = tune(
         data,
         tunable=tunable(_sk_stack_cv),
         distributable=distributable,
         objective_runner=objective_runner,
     )
-    best = select_best(best, top=1)
+    best = select_best(result, top=1)
+    visualize_top(result, top=visualize_top_n)
     dag.run(e)
     return list(best.result.as_dict_iterable())
 
