@@ -6,6 +6,7 @@ import random
 from typing import Any, Callable, Dict, Iterable, List, Optional, Set, no_type_check
 from uuid import uuid4
 
+import matplotlib.pyplot as plt
 import pandas as pd
 from fugue import (
     ArrayDataFrame,
@@ -30,7 +31,7 @@ from triad.utils.convert import get_caller_global_local_vars, to_function
 
 from fugue_tune.exceptions import FugueTuneCompileError, FugueTuneRuntimeError
 from fugue_tune.space import Space, decode
-import matplotlib.pyplot as plt
+from fugue_tune.trial import TrialCallback, TrialsTracker
 
 
 class Tunable(object):
@@ -301,6 +302,7 @@ def tune(  # noqa: C901
     tunable: Any,
     distributable: Optional[bool] = None,
     objective_runner: Optional[ObjectiveRunner] = None,
+    tracker: Optional[TrialsTracker] = None,
 ) -> WorkflowDataFrame:
     t = _to_tunable(  # type: ignore
         tunable, *get_caller_global_local_vars(), distributable
@@ -313,7 +315,9 @@ def tune(  # noqa: C901
 
     # input_has: __fmin_params__:str
     # schema: *,__fmin_value__:double,__fmin_metadata__:str
-    def compute_transformer(df: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
+    def compute_transformer(
+        df: Iterable[Dict[str, Any]], cb: Optional[Callable] = None
+    ) -> Iterable[Dict[str, Any]]:
         for row in df:
             dfs: Dict[str, Any] = {}
             dfs_keys: Set[str] = set()
