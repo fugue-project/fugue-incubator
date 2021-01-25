@@ -24,3 +24,11 @@ package:
 
 test:
 	python3 -bb -m pytest tests/
+
+jupyter:
+	pip install .
+	rm -rf /root/.jupyter/jupyter_config.py
+	rm -rf /root/.ipython/profile_default/startup/
+	mkdir -p /root/.ipython/profile_default/startup/
+	cp fugue_notebook/jupyter_config.py /root/.ipython/profile_default/startup/
+	jupyter notebook --port=8888 --ip=0.0.0.0 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''

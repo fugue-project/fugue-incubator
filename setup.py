@@ -28,7 +28,11 @@ setup(
     keywords="fugue incubator experiment",
     url="http://github.com/fugue-project/fugue-incubator",
     install_requires=["fugue>=0.5.0", "scikit-learn", "matplotlib"],
-    extras_require={"hyperopt": ["hyperopt"], "all": ["hyperopt"]},
+    extras_require={
+        "hyperopt": ["hyperopt"],
+        "notebook": ["notebook", "jupyterlab"],
+        "all": ["hyperopt", "notebook", "jupyterlab"],
+    },
     classifiers=[
         # "3 - Alpha", "4 - Beta" or "5 - Production/Stable"
         "Development Status :: 3 - Alpha",
