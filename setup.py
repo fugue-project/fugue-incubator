@@ -27,7 +27,7 @@ setup(
     author_email="goodwanghan@gmail.com",
     keywords="fugue incubator experiment",
     url="http://github.com/fugue-project/fugue-incubator",
-    install_requires=["fugue>=0.5.0", "scikit-learn", "matplotlib"],
+    install_requires=["fugue>=0.5.1", "scikit-learn", "matplotlib"],
     extras_require={
         "hyperopt": ["hyperopt"],
         "notebook": ["notebook", "jupyterlab"],

@@ -6,6 +6,7 @@ import random
 from typing import Any, Callable, Dict, Iterable, List, Optional, Set, no_type_check
 from uuid import uuid4
 
+import matplotlib.pyplot as plt
 import pandas as pd
 from fugue import (
     ArrayDataFrame,
@@ -28,9 +29,9 @@ from fugue._utils.interfaceless import (
 from triad import ParamDict, assert_or_throw
 from triad.utils.convert import get_caller_global_local_vars, to_function
 
+from fugue_tune.constants import FUGUE_TUNE_TEMP_PATH
 from fugue_tune.exceptions import FugueTuneCompileError, FugueTuneRuntimeError
 from fugue_tune.space import Space, decode
-import matplotlib.pyplot as plt
 
 
 class Tunable(object):
@@ -360,7 +361,7 @@ def serialize_df(df: WorkflowDataFrame, name: str, path: str = "") -> WorkflowDa
     def _get_temp_path(p: str, conf: ParamDict) -> str:
         if p is not None and p != "":
             return p
-        return conf.get_or_throw("fugue.temp.path", str)  # TODO: remove hard code
+        return conf.get_or_throw(FUGUE_TUNE_TEMP_PATH, str)  # TODO: remove hard code
 
     if len(pre_partition.partition_by) == 0:
 
@@ -447,7 +448,7 @@ def visualize_top_n(df: WorkflowDataFrame, top: int = 0) -> None:
         ]
 
         def show(subdf: pd.DataFrame) -> None:
-            if subdf.shape[0] == 0:
+            if subdf.shape[0] == 0:  # pragma: no cover
                 return
             subdf = subdf.sort_values("__fmin_value__").head(top)
             title = (

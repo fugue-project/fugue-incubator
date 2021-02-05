@@ -11,11 +11,11 @@ from fugue import (
     DataFrame,
     ExecutionEngine,
     FugueWorkflow,
-    NativeExecutionEngine,
     WorkflowDataFrame,
+    make_execution_engine,
 )
 from triad import FileSystem, assert_or_throw
-from triad.utils.convert import get_full_type_path, to_instance, to_type
+from triad.utils.convert import get_full_type_path, to_type
 
 from fugue_tune.space import Space
 from fugue_tune.tune import (
@@ -50,9 +50,9 @@ def suggest_sk_model(
     visualize_top_n: int = 0,
     objective_runner: Optional[ObjectiveRunner] = None,
     distributable: Optional[bool] = None,
-    execution_engine: Any = NativeExecutionEngine,
+    execution_engine: Any = None,
 ) -> List[Dict[str, Any]]:
-    e = to_instance(execution_engine, ExecutionEngine)
+    e = make_execution_engine(execution_engine)
     model_path = serialize_path if save_model else ""
 
     dag = FugueWorkflow()
@@ -95,12 +95,12 @@ def suggest_sk_stacking_model(
     visualize_top_n: int = 0,
     objective_runner: Optional[ObjectiveRunner] = None,
     distributable: Optional[bool] = None,
-    execution_engine: Any = NativeExecutionEngine,
+    execution_engine: Any = None,
     stack_cv: int = 2,
     stack_method: str = "auto",
     stack_passthrough: bool = False,
 ) -> List[Dict[str, Any]]:
-    e = to_instance(execution_engine, ExecutionEngine)
+    e = make_execution_engine(execution_engine)
     model_path = serialize_path if save_model else ""
 
     dag = FugueWorkflow()

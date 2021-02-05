@@ -8,6 +8,7 @@ from fugue import (
     IterableDataFrame,
     NativeExecutionEngine,
     WorkflowDataFrame,
+    make_execution_engine,
 )
 from pytest import raises
 
@@ -21,6 +22,7 @@ from fugue_tune import (
     tune,
     visualize_top_n,
 )
+from fugue_tune.constants import FUGUE_TUNE_TEMP_PATH
 from fugue_tune.exceptions import FugueTuneCompileError
 
 
@@ -88,7 +90,7 @@ def test_tune_df(tmpdir):
     def t1(a: int, df: pd.DataFrame, b: int) -> float:
         return float(a + b + df["y"].sum())
 
-    e = NativeExecutionEngine(conf={"fugue.temp.path": str(tmpdir)})
+    e = make_execution_engine(None, {FUGUE_TUNE_TEMP_PATH: str(tmpdir)})
 
     for distributable in [True, False, None]:
         with FugueWorkflow(e) as dag:
@@ -130,7 +132,7 @@ def test_select_best(tmpdir):
             "metadata": {"a": a},
         }
 
-    e = NativeExecutionEngine(conf={"fugue.temp.path": str(tmpdir)})
+    e = NativeExecutionEngine(conf={FUGUE_TUNE_TEMP_PATH: str(tmpdir)})
     with FugueWorkflow(e) as dag:
         df1 = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
         df2 = dag.df([[0, 10], [1, 20]], "x:int,y:int").partition(by=["x"])
@@ -153,7 +155,7 @@ def test_visualize_top_n(tmpdir):
             "metadata": {"a": a},
         }
 
-    e = NativeExecutionEngine(conf={"fugue.temp.path": str(tmpdir)})
+    e = NativeExecutionEngine(conf={FUGUE_TUNE_TEMP_PATH: str(tmpdir)})
     with FugueWorkflow(e) as dag:
         df1 = dag.df([[0, 1], [1, 2], [0, 2]], "x:int,y:int").partition(by=["x"])
         df2 = dag.df([[0, 10], [1, 20]], "x:int,y:int").partition(by=["x"])
