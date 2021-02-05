@@ -448,7 +448,7 @@ def visualize_top_n(df: WorkflowDataFrame, top: int = 0) -> None:
         ]
 
         def show(subdf: pd.DataFrame) -> None:
-            if subdf.shape[0] == 0:
+            if subdf.shape[0] == 0:  # pragma: no cover
                 return
             subdf = subdf.sort_values("__fmin_value__").head(top)
             title = (
